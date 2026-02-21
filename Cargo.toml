@@ -33,6 +33,13 @@ thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Signature verification for community submissions
+ed25519-dalek = { version = "2", features = ["serde"] }
+base64 = "0.22"
+
+# Pattern validation
+regex = "1"
+
 # SIGIL core
 sigil-protocol = "0.1.4"
 

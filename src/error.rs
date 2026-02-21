@@ -19,6 +19,27 @@ pub enum RegistryError {
     #[error("Invalid DID format: {0}")]
     InvalidDid(String),
 
+    #[error("Resource not found: {0}")]
+    ResourceNotFound(String),
+
+    #[error("Duplicate entry: {0}")]
+    Duplicate(String),
+
+    #[error("Validation error: {0}")]
+    Validation(String),
+
+    #[error("Invalid signature: {0}")]
+    InvalidSignature(String),
+
+    #[error("Author DID not registered: {0}")]
+    UnknownAuthor(String),
+
+    #[error("Already voted")]
+    AlreadyVoted,
+
+    #[error("Invalid vote: must be 'up' or 'down'")]
+    InvalidVote,
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -39,6 +60,25 @@ impl IntoResponse for RegistryError {
             RegistryError::InvalidDid(msg) => {
                 (StatusCode::BAD_REQUEST, format!("Invalid DID: {msg}"))
             }
+            RegistryError::ResourceNotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            RegistryError::Duplicate(msg) => (StatusCode::CONFLICT, msg.clone()),
+            RegistryError::Validation(msg) => (StatusCode::UNPROCESSABLE_ENTITY, msg.clone()),
+            RegistryError::InvalidSignature(msg) => (
+                StatusCode::UNAUTHORIZED,
+                format!("Invalid signature: {msg}"),
+            ),
+            RegistryError::UnknownAuthor(did) => (
+                StatusCode::FORBIDDEN,
+                format!("Author DID not registered: {did}"),
+            ),
+            RegistryError::AlreadyVoted => (
+                StatusCode::CONFLICT,
+                "You have already voted on this entry".into(),
+            ),
+            RegistryError::InvalidVote => (
+                StatusCode::BAD_REQUEST,
+                "Vote must be 'up' or 'down'".into(),
+            ),
             RegistryError::Database(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Database error: {e}"),
