@@ -16,7 +16,8 @@ use crate::{
 };
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use serde_json::{json, Value};
@@ -95,25 +96,39 @@ pub async fn list_patterns(
 /// `GET /patterns/bundle` — Download all verified patterns as a compiled bundle.
 ///
 /// This is the endpoint consumed by the `sigil-protocol` Rust crate and
-/// `@sigil-eu/sdk-node` at startup to fetch the latest community patterns.
+/// `sigil-protocol` npm package at startup to fetch the latest community patterns.
+///
+/// The response is marked `Cache-Control: public, max-age=3600` so that CDNs
+/// (e.g. Cloudflare) can serve it from cache for up to 1 hour, dramatically
+/// reducing origin load when many clients start up simultaneously.
 pub async fn get_bundle(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Value>, RegistryError> {
-    let patterns = sqlx::query_as::<_, ScannerPattern>(
+) -> Response {
+    let patterns = match sqlx::query_as::<_, ScannerPattern>(
         "SELECT * FROM scanner_patterns
          WHERE active = TRUE AND verified = TRUE
          ORDER BY category, name",
     )
     .fetch_all(&state.pool)
-    .await?;
+    .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("get_bundle DB error: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "database error" }))).into_response();
+        }
+    };
 
-    // Increment download counter for all returned patterns
-    sqlx::query(
-        "UPDATE scanner_patterns SET downloads = downloads + 1
-         WHERE active = TRUE AND verified = TRUE",
-    )
-    .execute(&state.pool)
-    .await?;
+    // Fire-and-forget: increment download counters without blocking the response
+    let pool = state.pool.clone();
+    tokio::spawn(async move {
+        let _ = sqlx::query(
+            "UPDATE scanner_patterns SET downloads = downloads + 1
+             WHERE active = TRUE AND verified = TRUE",
+        )
+        .execute(&pool)
+        .await;
+    });
 
     let bundle: Vec<BundleEntry> = patterns
         .into_iter()
@@ -126,12 +141,22 @@ pub async fn get_bundle(
         })
         .collect();
 
-    Ok(Json(json!({
+    let body = json!({
         "version": "1",
         "generated_at": chrono::Utc::now(),
         "count": bundle.len(),
         "patterns": bundle,
-    })))
+    });
+
+    (
+        StatusCode::OK,
+        [
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+            (header::VARY, "Accept-Encoding"),
+        ],
+        Json(body),
+    )
+        .into_response()
 }
 
 // ── Get one ───────────────────────────────────────────────────────────────────
