@@ -1,0 +1,40 @@
+[package]
+name = "sigil-registry"
+version = "0.1.0"
+edition = "2021"
+description = "SIGIL Registry — DID resolution server for the SIGIL Protocol"
+license = "EUPL-1.2"
+repository = "https://github.com/sigil-eu/sigil-registry"
+homepage = "https://sigil-protocol.org"
+
+[[bin]]
+name = "sigil-registry"
+path = "src/main.rs"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate"] }
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# SIGIL core
+sigil-protocol = "0.1.3"
+
+[dev-dependencies]
+axum-test = "14"
