@@ -41,7 +41,7 @@ pub struct RegisterRequest {
 }
 
 /// Response for `GET /resolve/{did}`.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ResolveResponse {
     pub did: String,
     pub status: String,
