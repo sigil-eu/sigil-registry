@@ -9,6 +9,9 @@ primary_region = "fra"  # Frankfurt — EU-based for EUPL compliance
   RUST_LOG = "sigil_registry=info,warn"
   LISTEN_ADDR = "0.0.0.0:3100"
   # DATABASE_URL is set as a secret: fly secrets set DATABASE_URL=...
+  # REGISTRY_KEY is set as a secret: fly secrets set REGISTRY_KEY=$(openssl rand -hex 32)
+  # REDIS_URL is set as a secret:    fly secrets set REDIS_URL=redis://...
+
 
 [http_service]
   internal_port = 3100
