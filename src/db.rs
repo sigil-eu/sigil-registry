@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: EUPL-1.2
+// Copyright (c) 2026 Benjamin Küttner <benjamin.kuettner@icloud.com>
+// Patent Pending — DE Gebrauchsmuster, filed 2026-02-23
+
 //! Database connection pool, Redis cache, and application state.
 
 use redis::aio::ConnectionManager;
@@ -10,6 +14,11 @@ pub struct AppState {
     /// Redis connection manager — multiplexes a single async connection across all handlers.
     /// `None` if `REDIS_URL` is not set (registry operates without cache, just slower at scale).
     pub cache: Option<ConnectionManager>,
+    /// Optional API key for `POST /register`.
+    /// When `Some`, callers must supply the matching value in `X-Registry-Key`.
+    /// When `None`, registration is open (useful for local dev / migration).
+    /// Set via `REGISTRY_KEY` environment variable.
+    pub registry_key: Option<String>,
 }
 
 impl AppState {
@@ -42,6 +51,13 @@ impl AppState {
             }
         };
 
-        Ok(Self { pool, cache })
+        let registry_key = std::env::var("REGISTRY_KEY").ok();
+        if registry_key.is_some() {
+            tracing::info!("REGISTRY_KEY set — POST /register is key-protected");
+        } else {
+            tracing::warn!("REGISTRY_KEY not set — POST /register is open (dev mode)");
+        }
+
+        Ok(Self { pool, cache, registry_key })
     }
 }

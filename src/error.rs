@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: EUPL-1.2
+// Copyright (c) 2026 Benjamin Küttner <benjamin.kuettner@icloud.com>
+// Patent Pending — DE Gebrauchsmuster, filed 2026-02-23
+
 //! Error types for the SIGIL Registry.
 
 use axum::{
@@ -40,6 +44,10 @@ pub enum RegistryError {
     #[error("Invalid vote: must be 'up' or 'down'")]
     InvalidVote,
 
+    /// Returned when a request is missing or supplies a wrong `X-Registry-Key`.
+    #[error("Unauthorized: invalid or missing registry API key")]
+    Unauthorized,
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
@@ -78,6 +86,10 @@ impl IntoResponse for RegistryError {
             RegistryError::InvalidVote => (
                 StatusCode::BAD_REQUEST,
                 "Vote must be 'up' or 'down'".into(),
+            ),
+            RegistryError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "Unauthorized: invalid or missing X-Registry-Key header".into(),
             ),
             RegistryError::Database(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,

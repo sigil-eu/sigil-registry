@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: EUPL-1.2
+// Copyright (c) 2026 Benjamin Küttner <benjamin.kuettner@icloud.com>
+// Patent Pending — DE Gebrauchsmuster, filed 2026-02-23
+
 //! Axum route handlers for the SIGIL Registry.
 
 use crate::{
@@ -7,7 +11,7 @@ use crate::{
 };
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use redis::AsyncCommands;
@@ -98,16 +102,35 @@ pub async fn resolve_did(
     Ok(Json(resp))
 }
 
-// ── Register ──────────────────────────────────────────────────────────────────
+// ── Register ─────────────────────────────────────────────────────────────────────────────
 
 /// `POST /register` — Register a new DID.
 ///
 /// Body: `{ "did": "did:sigil:foo", "public_key": "<base64url>", "namespace": "foo", "label": "..." }`
+///
+/// Gap 1: When `REGISTRY_KEY` env var is set, callers must supply the matching value
+/// in the `X-Registry-Key` request header. Comparison is constant-time to prevent
+/// timing-based key enumeration attacks.
 pub async fn register_did(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<Value>), RegistryError> {
-    // Validate DID format
+    // ── API key gate (────────────────────────────────────────────────────────────────
+    if let Some(expected_key) = &state.registry_key {
+        let supplied = headers
+            .get("x-registry-key")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+
+        // Constant-time comparison to resist timing attacks
+        if !constant_time_eq(supplied.as_bytes(), expected_key.as_bytes()) {
+            tracing::warn!("Rejected /register: invalid or missing X-Registry-Key");
+            return Err(RegistryError::Unauthorized);
+        }
+    }
+
+    // ── Validate DID format ───────────────────────────────────────────────────────────────
     if !req.did.starts_with("did:sigil:") {
         return Err(RegistryError::InvalidDid(format!(
             "DID must start with 'did:sigil:' — got: {}",
@@ -149,6 +172,17 @@ pub async fn register_did(
             "message": "DID registered successfully",
         })),
     ))
+}
+
+/// Constant-time byte slice comparison.
+///
+/// Returns `true` only if both slices are equal AND of the same length.
+/// Always iterates the full length of the longer slice to prevent timing leaks.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 // ── Revoke ────────────────────────────────────────────────────────────────────
